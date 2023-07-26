@@ -1,0 +1,184 @@
+{
+  "name": "Open AI tests",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "e79a13d9-0257-4c15-9125-a01ca4604f7c",
+      "name": "When clicking \"Execute Workflow\"",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        380,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "product",
+        "operation": "getAll",
+        "limit": 10,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "field": "description",
+              "condition_type": "notnull"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fb89e1ff-dc67-4e56-b5fe-bc18655433cc",
+      "name": "Magento 2",
+      "type": "n8n-nodes-base.magento2",
+      "typeVersion": 1,
+      "position": [
+        600,
+        320
+      ],
+      "credentials": {
+        "magento2Api": {
+          "id": "11",
+          "name": "Magento 2 Sandbox API account "
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Initialize an empty array to store the extracted data\nconst extractedData = [];\n\n// Function to extract the description and product SKU\nfunction extractDescriptionAndSKU(customAttributes, sku) {\n  const descriptionAttribute = customAttributes?.find(attr => attr[\"attribute_code\"] === \"description\")?.[\"value\"] || '';\n  return {\n    sku: sku || '',\n    description: descriptionAttribute\n  };\n}\n\n// Loop through each item in the input data\nfor (const product of items) {\n  // Check if the product has the required attributes\n  if (product.json.custom_attributes && product.json.sku) {\n    // Extract description and product SKU\n    const productSKU = product.json.sku;\n    const { sku, description } = extractDescriptionAndSKU(product.json.custom_attributes, productSKU);\n\n    // Add the extracted data to the array\n    extractedData.push({\n      sku,\n      description\n    });\n  }\n}\n\n// Output the extracted data as an array\nreturn extractedData;\n"
+      },
+      "id": "d9e9ffc2-6197-4570-a1a1-d24e4d68d733",
+      "name": "Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        780,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "prompt": {
+          "messages": [
+            {
+              "content": "=This is the initial data \nsku:  {{ $json.sku }}, \ndescription: {{ $json.description }}\n\n\nIn a JSON format:\n\n- Improve the description, making it more engaging, better selling the underlying product. In less than 200 words. In English. Casual Tone. \n\nSanitize quotes in description, so they don't break valid JSON\n\nformat should be:\n{\"sku\": sku,\n\"description\": new_improved_description}\n\n\nJSON: "
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c51c7e97-aedb-4a15-97b9-30b05d566afc",
+      "name": "OpenAI",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        920,
+        320
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "12",
+          "name": "OpenAi account Magenable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Function to extract sku and description for a single product\nfunction extractSKuAndDescription(inputItem) {\n    try {\n      const content = JSON.parse(inputItem.message.content);\n      return {\n        sku: content.sku,\n        description: content.description\n      };\n    } catch (e) {\n      // Handle any JSON parsing errors or missing properties\n      console.error('Error parsing item:', e);\n      return null;\n    }\n}\n\n// Get input data from the previous node\nconst inputItem = $json;\n\nconst product = extractSKuAndDescription(inputItem);\n\n// Check if product extraction was successful\nif (product) {\n    return { json: product };  // Wrap the product inside the `json` key\n} else {\n    // Handle error or return an empty object to move forward in the workflow\n    return { json: {} };\n}\n"
+      },
+      "id": "790d3445-e2dc-4da8-bcfc-006418a99f84",
+      "name": "Code1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1140,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "fileFormat": "csv",
+        "options": {
+          "fileName": "new_data.csv"
+        }
+      },
+      "id": "8456059f-5549-4243-a4e9-e52b013c604a",
+      "name": "Spreadsheet File",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 1,
+      "position": [
+        1360,
+        320
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking \"Execute Workflow\"": {
+      "main": [
+        [
+          {
+            "node": "Magento 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Magento 2": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Spreadsheet File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "25b2c40a-8669-41ae-a7f7-67901a771ba2",
+  "id": "15",
+  "meta": {
+    "instanceId": "9be1cd7e4d741b5dcadb456305ea6f33e7d5e7377f5796c4020deb08d74a97fe"
+  },
+  "tags": []
+}
